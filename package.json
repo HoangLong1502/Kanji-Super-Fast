@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "test": "npm run build && node --test dist/tests/pipeline.test.js",
-    "dev": "tsx src/cli.ts"
+    "dev": "tsx src/cli.ts",
+    "web": "tsx src/server.ts",
+    "start": "npm run build && node dist/src/server.js"
   },
   "dependencies": {
     "adm-zip": "^0.6.1",

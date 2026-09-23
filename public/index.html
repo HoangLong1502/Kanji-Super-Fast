@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SuperKanji</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=Zen+Old+Mincho:wght@500;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="hero">
+        <p class="brand">SuperKanji</p>
+        <h1>Rút Kanji & từ vựng từ PowerPoint</h1>
+        <p class="lede">
+          Chỉ lấy text thật sự có trong slide. Dictionary chỉ bổ sung reading / nghĩa, không thêm từ mới.
+        </p>
+      </header>
+
+      <section class="upload-panel" aria-label="Upload PowerPoint">
+        <form id="upload-form">
+          <label class="dropzone" id="dropzone" for="pptx-input">
+            <input id="pptx-input" name="pptx" type="file" accept=".pptx,application/vnd.openxmlformats-officedocument.presentationml.presentation" required />
+            <span class="dropzone-title">Kéo thả file .pptx vào đây</span>
+            <span class="dropzone-hint">hoặc bấm để chọn · tối đa 20MB</span>
+            <span class="file-name" id="file-name">Chưa chọn file</span>
+          </label>
+
+          <label class="option">
+            <input type="checkbox" id="include-notes" name="includeNotes" />
+            <span>Bao gồm speaker notes (tắt mặc định)</span>
+          </label>
+
+          <button type="submit" id="submit-btn">Extract từ PPT</button>
+        </form>
+
+        <p class="status" id="status" role="status"></p>
+      </section>
+
+      <section class="results hidden" id="results">
+        <div class="summary" id="summary"></div>
+
+        <div class="columns">
+          <div>
+            <h2>Vocabulary</h2>
+            <ul class="list" id="vocab-list"></ul>
+          </div>
+          <div>
+            <h2>Kanji</h2>
+            <ul class="list" id="kanji-list"></ul>
+          </div>
+        </div>
+
+        <div class="detail hidden" id="detail">
+          <h2 id="detail-title"></h2>
+          <p id="detail-meta"></p>
+          <h3>Found in</h3>
+          <ul id="detail-sources"></ul>
+        </div>
+      </section>
+    </div>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>

@@ -19,10 +19,10 @@ export interface LessonPipelineOptions extends PptExtractionOptions {
 }
 
 export async function extractLessonFromPptx(
-  pptxPath: string,
+  pptxInput: string | Buffer,
   options: LessonPipelineOptions = {}
 ): Promise<LessonExtractionResult> {
-  const slides = await extractPptxText(pptxPath, options);
+  const slides = await extractPptxText(pptxInput, options);
   return extractLessonFromSlides(slides, options);
 }
 

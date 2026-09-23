@@ -82,7 +82,15 @@ Install dependencies:
 npm install
 ```
 
-Extract a lesson JSON file:
+### Web app (upload PPT in browser)
+
+```bash
+npm run web
+```
+
+Open [http://localhost:3456](http://localhost:3456), upload a `.pptx` file, then review vocabulary / kanji with slide sources.
+
+### CLI
 
 ```bash
 npm run dev -- ./lesson.pptx ./lesson.json

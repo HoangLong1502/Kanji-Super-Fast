@@ -10,10 +10,10 @@ const xmlParser = new XMLParser({
 });
 
 export async function extractPptxText(
-  pptxPath: string,
+  pptxInput: string | Buffer,
   options: PptExtractionOptions = {}
 ): Promise<ExtractedSlideText[]> {
-  const zip = new AdmZip(pptxPath);
+  const zip = new AdmZip(pptxInput);
   const entries = zip.getEntries();
   const slideSources = extractSourcesFromEntries(entries, /^ppt\/slides\/slide(\d+)\.xml$/, "slide_text");
 
