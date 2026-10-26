@@ -64,8 +64,8 @@ export interface DictionaryLookup {
   lookupKanji(character: string): Promise<{ hanViet?: string; on?: string[]; kun?: string[]; meaning?: string } | undefined>;
 }
 
-const WORD = "[\\u3040-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff々〆ー]+";
-const KANA = "[\\u3040-\\u30ffー]+";
+const WORD = "[〜～]?[\\u3040-\\u30ff\\u3400-\\u9fff\\uf900-\\ufaff々〆ー]+";
+const KANA = "[〜～]?[\\u3040-\\u30ffー]+";
 
 export function parseLessonDocument(blocks: SourceBlock[], filename = "bài học"): LessonDraft {
   const kanji = new Map<string, DraftKanji>();
@@ -102,6 +102,17 @@ export function parseLessonDocument(blocks: SourceBlock[], filename = "bài họ
         }
       }
 
+      // Âm on/kun trên thẻ (トウ / あたま) ngay sau kanji hiện tại, không cần nhãn 音/訓.
+      if (currentKanji && /^[\u3040-\u30ffー・.．]+$/u.test(line)) {
+        const readings = splitListedReadings(line);
+        if (readings.length > 0) {
+          const entry = kanji.get(currentKanji);
+          const kind = /[\u30a0-\u30ff]/u.test(line) ? "on" : "kun";
+          addListedReadings(entry, kind, readings);
+          continue;
+        }
+      }
+
       const labeled = line.match(/^(音|訓)(?:読み)?\s*[:：]\s*(.*)$/u);
       if (labeled) {
         const kind = labeled[1] === "音" ? "on" : "kun";
@@ -109,7 +120,7 @@ export function parseLessonDocument(blocks: SourceBlock[], filename = "bài họ
         const vocab = rest ? parseVocabularyLine(rest) : null;
 
         if (vocab) {
-          addVocabulary(vocabulary, vocab, block.page, line, kanji, () => {
+          addVocabulary(vocabulary, vocab, block.page, line, () => {
             sort += 1;
             return sort;
           });
@@ -126,7 +137,7 @@ export function parseLessonDocument(blocks: SourceBlock[], filename = "bài họ
         continue;
       }
 
-      const header = parseKanjiHeader(line) ?? parseKanjiHeader(line.replace(/^\d+\s*[.)、]\s*/u, ""));
+      const header = parseKanjiHeader(line) ?? parseKanjiHeader(line.replace(/^\d+\s*[.)、]?\s*/u, ""));
       if (header) {
         currentKanji = header.character;
         const entry = ensureKanji(kanji, header.character, block.page, line, () => {
@@ -166,7 +177,7 @@ export function parseLessonDocument(blocks: SourceBlock[], filename = "bài họ
           continue;
         }
 
-        addVocabulary(vocabulary, vocab, block.page, line, kanji, () => {
+        addVocabulary(vocabulary, vocab, block.page, line, () => {
           sort += 1;
           return sort;
         });
@@ -190,6 +201,7 @@ export function parseLessonDocument(blocks: SourceBlock[], filename = "bài họ
 
       for (const token of tokens) {
         if (isIsolatedKanji(token)) {
+          // Chữ kanji đứng một mình (ô tổng quan 1–12, hoặc thẻ chưa có Hán Việt) mới là kanji cần học.
           currentKanji = token;
           ensureKanji(kanji, token, block.page, line, () => {
             sort += 1;
@@ -198,12 +210,12 @@ export function parseLessonDocument(blocks: SourceBlock[], filename = "bài họ
           continue;
         }
 
+        // Từ ghép / cụm: chỉ vào vocabulary, không tách từng chữ thành kanji bài học.
         addVocabulary(
           vocabulary,
           { word: token, reading: "", katakana: "", meaning: "" },
           block.page,
           line,
-          kanji,
           () => {
             sort += 1;
             return sort;
@@ -327,7 +339,9 @@ export function parseVocabularyLine(line: string): { word: string; reading: stri
     new RegExp(`^(${WORD})\\s*[（(]\\s*(${KANA})\\s*(?:[-–—]\\s*[A-Za-zĀ-ūā-ū'’\\s]+)?\\s*[）)]\\s*[:：]\\s*(.+)$`, "u"),
     new RegExp(`^(${WORD})\\s*[（(]\\s*(${KANA})\\s*[）)]\\s*[:：\\-–—]?\\s*(.*)$`, "u"),
     new RegExp(`^(${WORD})\\s+(${KANA})\\s*[:：]\\s*(.+)$`, "u"),
-    new RegExp(`^([\\u3400-\\u9fff々〆][\\u3040-\\u309f々〆ー\\u3400-\\u9fff]{0,14})\\s+(${KANA})\\s+(\\S.+)$`, "u")
+    new RegExp(`^([〜～]?[\\u3400-\\u9fff々〆][\\u3040-\\u309f々〆ー\\u3400-\\u9fff]{0,14})\\s+(${KANA})\\s+(\\S.+)$`, "u"),
+    // Từ ghép + hiragana (không có nghĩa), dạng slide: 先頭 せんとう / ～頭 とう
+    new RegExp(`^(${WORD})\\s+(${KANA})$`, "u")
   ];
 
   for (const pattern of patterns) {
@@ -505,7 +519,6 @@ function addVocabulary(
   parsed: { word: string; reading: string; katakana: string; meaning: string },
   page: number,
   excerpt: string,
-  kanji: Map<string, DraftKanji>,
   nextSort: () => number
 ): void {
   const key = `${parsed.word}\u0000${parsed.reading}`;
@@ -523,10 +536,9 @@ function addVocabulary(
     return;
   }
 
+  // Chỉ gắn với kanji đã có trong bài (thẻ kanji cần học). Không tạo kanji mới từ chữ phụ trong từ ghép
+  // (vd: 先頭/頭痛 → vocabulary; không thêm 先 thành kanji bài học).
   const characters = kanjiCharactersIn(parsed.word);
-  for (const character of characters) {
-    ensureKanji(kanji, character, page, excerpt, nextSort);
-  }
 
   const entry: DraftVocabulary = {
     writtenForm: parsed.word,
