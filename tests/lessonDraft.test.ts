@@ -78,7 +78,7 @@ describe("lesson draft parser", () => {
   });
 
   it("lets a dictionary fill only empty fields and never adds extra compounds", async () => {
-    const draft = parseLessonDocument([{ page: 1, text: "学生\n学校 (がっこう): trường học" }], "a.pptx");
+    const draft = parseLessonDocument([{ page: 1, text: "学 (HỌC)\n学生\n学校 (がっこう): trường học" }], "a.pptx");
     const enriched = await applyDictionarySuggestions(draft, {
       async lookupWord(word: string) {
         if (word === "学生") {
@@ -104,8 +104,52 @@ describe("lesson draft parser", () => {
     assert.equal(school?.readingOrigin, "source");
     assert.deepEqual(school?.meanings, ["trường học"]);
     assert.equal(study?.hanViet, "HỌC");
-    assert.equal(study?.hanVietOrigin, "suggested");
+    assert.equal(study?.hanVietOrigin, "source");
+    assert.equal(enriched.kanji.some((entry) => entry.character === "生"), false);
+    assert.equal(enriched.kanji.some((entry) => entry.character === "校"), false);
     assert.equal(enriched.vocabulary.some((entry) => entry.writtenForm === "大学"), false);
+  });
+
+  it("treats compound rows as vocabulary and keeps only the lesson kanji card", () => {
+    const draft = parseLessonDocument(
+      [
+        {
+          page: 1,
+          text: `1 頭
+2 顔
+3 首
+4 走
+5 声
+6 重
+7 太
+8 計
+9 不
+10 痛
+11 両
+12 秒`
+        },
+        {
+          page: 2,
+          text: `頭 (ĐẦU)
+トウ
+あたま
+～頭 とう
+先頭 せんとう
+頭痛 ずつう`
+        }
+      ],
+      "bai.pptx"
+    );
+
+    assert.equal(draft.kanji.length, 12);
+    assert.deepEqual(
+      draft.kanji.map((entry) => entry.character),
+      ["頭", "顔", "首", "走", "声", "重", "太", "計", "不", "痛", "両", "秒"]
+    );
+    assert.equal(draft.kanji.some((entry) => entry.character === "先"), false);
+    assert.ok(draft.vocabulary.some((entry) => entry.writtenForm === "先頭"));
+    assert.ok(draft.vocabulary.some((entry) => entry.writtenForm === "頭痛"));
+    assert.ok(draft.vocabulary.some((entry) => entry.writtenForm === "～頭" || entry.writtenForm === "〜頭"));
   });
 
   it("detects a Japanese lesson heading", () => {
