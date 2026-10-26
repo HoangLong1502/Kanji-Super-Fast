@@ -1,26 +1,46 @@
 import { createServer } from "node:http";
-import { readFile } from "node:fs/promises";
+import { createWriteStream } from "node:fs";
+import { readFile, unlink } from "node:fs/promises";
 import { extname, join, resolve } from "node:path";
+import { tmpdir } from "node:os";
+import { randomUUID } from "node:crypto";
+import { pipeline } from "node:stream/promises";
+import Busboy from "busboy";
 import { extractLessonFromPptx } from "./pipeline.js";
 
 const publicDir = resolve(process.cwd(), "public");
 const port = Number(process.env.PORT ?? 3456);
-const maxUploadBytes = 20 * 1024 * 1024;
+const maxUploadBytes = 100 * 1024 * 1024;
+const maxUploadLabel = "100MB";
 
 const mimeTypes: Record<string, string> = {
   ".html": "text/html; charset=utf-8",
   ".css": "text/css; charset=utf-8",
   ".js": "text/javascript; charset=utf-8",
   ".svg": "image/svg+xml",
-  ".json": "application/json; charset=utf-8"
+  ".json": "application/json; charset=utf-8",
+  ".ico": "image/x-icon"
 };
 
-const server = createServer(async (req, res) => {
+const server = createServer((req, res) => {
+  void handleRequest(req, res);
+});
+
+async function handleRequest(
+  req: import("node:http").IncomingMessage,
+  res: import("node:http").ServerResponse
+): Promise<void> {
   try {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`);
 
     if (req.method === "POST" && url.pathname === "/api/extract") {
       await handleExtract(req, res);
+      return;
+    }
+
+    if (req.method === "GET" && url.pathname === "/favicon.ico") {
+      res.writeHead(204);
+      res.end();
       return;
     }
 
@@ -31,10 +51,13 @@ const server = createServer(async (req, res) => {
 
     sendJson(res, 405, { error: "Method not allowed." });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unexpected server error.";
-    sendJson(res, 500, { error: message });
+    console.error("[request]", error);
+    if (!res.headersSent) {
+      const message = error instanceof Error ? error.message : "Unexpected server error.";
+      sendJson(res, 500, { error: message });
+    }
   }
-});
+}
 
 async function handleExtract(
   req: import("node:http").IncomingMessage,
@@ -46,28 +69,166 @@ async function handleExtract(
     return;
   }
 
-  const body = await readRequestBody(req, maxUploadBytes);
-  const file = parseMultipartPptx(body, contentType);
+  let upload: Awaited<ReturnType<typeof parseUpload>>;
 
-  if (!file) {
+  try {
+    upload = await parseUpload(req);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Upload failed.";
+    sendJson(res, 400, { error: message });
+    return;
+  }
+
+  if (!upload) {
     sendJson(res, 400, { error: "No .pptx file found. Use field name \"pptx\"." });
     return;
   }
 
-  if (!file.filename.toLowerCase().endsWith(".pptx")) {
-    sendJson(res, 400, { error: "Only .pptx files are accepted." });
+  if (!upload.filename.toLowerCase().endsWith(".pptx")) {
+    await unlink(upload.tempPath).catch(() => undefined);
+    sendJson(res, 400, { error: "Only .pptx files are accepted (not .ppt)." });
     return;
   }
 
-  const includeNotes = file.includeNotes;
-  const result = await extractLessonFromPptx(file.buffer, { includeNotes });
+  try {
+    const result = await extractLessonFromPptx(upload.tempPath, {
+      includeNotes: upload.includeNotes
+    });
 
-  sendJson(res, 200, {
-    fileName: file.filename,
-    vocabularyCount: result.vocabulary.length,
-    kanjiCount: result.kanji.length,
-    slideCount: result.rawSlides.length,
-    ...result
+    sendJson(res, 200, {
+      fileName: upload.filename,
+      vocabularyCount: result.vocabulary.length,
+      kanjiCount: result.kanji.length,
+      slideCount: result.rawSlides.length,
+      vocabulary: result.vocabulary,
+      kanji: result.kanji,
+      rawSlides: result.rawSlides.map((slide) => ({
+        slideNumber: slide.slideNumber,
+        sourceType: slide.sourceType,
+        rawText: slide.rawText,
+        normalizedText: slide.normalizedText
+      }))
+    });
+  } catch (error) {
+    console.error("[extract]", error);
+    const message =
+      error instanceof Error ? error.message : "Failed to extract text from PowerPoint.";
+    sendJson(res, 400, {
+      error: `Cannot read this PowerPoint: ${message}`
+    });
+  } finally {
+    await unlink(upload.tempPath).catch(() => undefined);
+  }
+}
+
+function parseUpload(req: import("node:http").IncomingMessage): Promise<
+  | {
+      filename: string;
+      tempPath: string;
+      includeNotes: boolean;
+    }
+  | undefined
+> {
+  return new Promise((resolvePromise, reject) => {
+    let settled = false;
+    let includeNotes = false;
+    let filename = "";
+    let tempPath = "";
+    let tooLarge = false;
+    let filePromise: Promise<void> | undefined;
+
+    const busboy = Busboy({
+      headers: req.headers as Record<string, string>,
+      limits: {
+        files: 1,
+        fileSize: maxUploadBytes
+      }
+    });
+
+    const settle = (error?: Error, value?: { filename: string; tempPath: string; includeNotes: boolean }) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (error) {
+        reject(error);
+      } else {
+        resolvePromise(value);
+      }
+    };
+
+    busboy.on("file", (fieldname, file, info) => {
+      if (fieldname !== "pptx") {
+        file.resume();
+        return;
+      }
+
+      filename = info.filename || "upload.pptx";
+      tempPath = join(tmpdir(), `superkanji-${randomUUID()}.pptx`);
+      const output = createWriteStream(tempPath);
+
+      file.on("limit", () => {
+        tooLarge = true;
+        file.unpipe(output);
+        output.destroy();
+        file.resume();
+      });
+
+      filePromise = pipeline(file, output).catch((error: Error) => {
+        if (!tooLarge) {
+          throw error;
+        }
+      });
+    });
+
+    busboy.on("field", (fieldname, value) => {
+      if (fieldname === "includeNotes") {
+        includeNotes = value === "true";
+      }
+    });
+
+    busboy.on("error", (error: Error) => {
+      settle(error);
+    });
+
+    busboy.on("finish", () => {
+      void (async () => {
+        try {
+          if (filePromise) {
+            await filePromise;
+          }
+
+          if (tooLarge) {
+            if (tempPath) {
+              await unlink(tempPath).catch(() => undefined);
+            }
+            settle(new Error(`File too large. Maximum size is ${maxUploadLabel}.`));
+            return;
+          }
+
+          if (!filename || !tempPath) {
+            settle(undefined, undefined);
+            return;
+          }
+
+          settle(undefined, { filename, tempPath, includeNotes });
+        } catch (error) {
+          if (tempPath) {
+            await unlink(tempPath).catch(() => undefined);
+          }
+          settle(error instanceof Error ? error : new Error("Upload failed."));
+        }
+      })();
+    });
+
+    req.on("aborted", () => {
+      if (tempPath) {
+        void unlink(tempPath).catch(() => undefined);
+      }
+      settle(new Error("Upload aborted."));
+    });
+
+    req.pipe(busboy);
   });
 }
 
@@ -89,110 +250,15 @@ async function serveStatic(
   }
 }
 
-function readRequestBody(
-  req: import("node:http").IncomingMessage,
-  limit: number
-): Promise<Buffer> {
-  return new Promise((resolvePromise, reject) => {
-    const chunks: Buffer[] = [];
-    let size = 0;
-
-    req.on("data", (chunk: Buffer) => {
-      size += chunk.length;
-      if (size > limit) {
-        reject(new Error("File too large. Maximum size is 20MB."));
-        req.destroy();
-        return;
-      }
-      chunks.push(chunk);
-    });
-
-    req.on("end", () => resolvePromise(Buffer.concat(chunks)));
-    req.on("error", reject);
-  });
-}
-
-function parseMultipartPptx(
-  body: Buffer,
-  contentType: string
-): { filename: string; buffer: Buffer; includeNotes: boolean } | undefined {
-  const boundaryMatch = /boundary=(?:"([^"]+)"|([^;]+))/i.exec(contentType);
-  if (!boundaryMatch) {
-    return undefined;
-  }
-
-  const boundary = boundaryMatch[1] ?? boundaryMatch[2];
-  const parts = splitMultipart(body, boundary);
-  let includeNotes = false;
-  let file: { filename: string; buffer: Buffer } | undefined;
-
-  for (const part of parts) {
-    const headerEnd = indexOfBuffer(part, Buffer.from("\r\n\r\n"));
-    if (headerEnd < 0) {
-      continue;
-    }
-
-    const headerText = part.subarray(0, headerEnd).toString("utf8");
-    let content = part.subarray(headerEnd + 4);
-    if (content.subarray(-2).equals(Buffer.from("\r\n"))) {
-      content = content.subarray(0, -2);
-    }
-
-    const nameMatch = /name="([^"]+)"/i.exec(headerText);
-    const filenameMatch = /filename="([^"]*)"/i.exec(headerText);
-    const name = nameMatch?.[1];
-
-    if (name === "includeNotes") {
-      includeNotes = content.toString("utf8").trim() === "true";
-      continue;
-    }
-
-    if (name === "pptx" && filenameMatch?.[1]) {
-      file = {
-        filename: filenameMatch[1],
-        buffer: content
-      };
-    }
-  }
-
-  return file ? { ...file, includeNotes } : undefined;
-}
-
-function splitMultipart(body: Buffer, boundary: string): Buffer[] {
-  const delimiter = Buffer.from(`--${boundary}`);
-  const parts: Buffer[] = [];
-  let start = indexOfBuffer(body, delimiter);
-
-  while (start >= 0) {
-    start += delimiter.length;
-    if (body.subarray(start, start + 2).equals(Buffer.from("--"))) {
-      break;
-    }
-    if (body.subarray(start, start + 2).equals(Buffer.from("\r\n"))) {
-      start += 2;
-    }
-
-    const end = indexOfBuffer(body, delimiter, start);
-    if (end < 0) {
-      break;
-    }
-
-    parts.push(body.subarray(start, end));
-    start = end;
-  }
-
-  return parts;
-}
-
-function indexOfBuffer(haystack: Buffer, needle: Buffer, from = 0): number {
-  return haystack.indexOf(needle, from);
-}
-
 function sendJson(
   res: import("node:http").ServerResponse,
   status: number,
   payload: unknown
 ): void {
+  if (res.headersSent) {
+    return;
+  }
+
   const body = JSON.stringify(payload);
   res.writeHead(status, {
     "Content-Type": "application/json; charset=utf-8",
@@ -200,6 +266,19 @@ function sendJson(
   });
   res.end(body);
 }
+
+process.on("uncaughtException", (error) => {
+  console.error("[uncaughtException]", error);
+});
+
+process.on("unhandledRejection", (error) => {
+  console.error("[unhandledRejection]", error);
+});
+
+server.on("error", (error) => {
+  console.error("[server]", error);
+  process.exit(1);
+});
 
 server.listen(port, () => {
   console.log(`SuperKanji web running at http://localhost:${port}`);

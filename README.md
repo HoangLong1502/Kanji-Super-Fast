@@ -1,102 +1,38 @@
 # SuperKanji
 
-SuperKanji extracts Japanese lesson data from uploaded PowerPoint files.
+Ứng dụng học kanji từ file PowerPoint hoặc PDF. Người học tải tài liệu, kiểm tra kanji và từ ghép, rồi luyện bằng flashcard, Hán Việt, hoặc gõ hiragana.
 
-## Core Rule
-
-PowerPoint is the only source of truth.
-
-The system must only save Kanji and vocabulary that can be traced back to text actually extracted from the uploaded `.pptx` file. External dictionaries and APIs may enrich metadata for an already extracted word, but they must not add related words, example words, synonyms, or extra Kanji.
-
-## Pipeline
-
-```text
-PPTX
--> Extract raw slide text
--> Normalize text
--> Identify Japanese text
--> Identify Kanji present in raw text
--> Identify vocabulary present in raw text
--> Dictionary lookup for metadata only
--> Final validation
--> Save
-```
-
-## Extraction Defaults
-
-Included by default:
-
-- Text boxes
-- Shape text
-- Paragraph text
-- Table cell text
-- Grouped shape text when present in slide text XML
-- Slide title text
-
-Excluded by default:
-
-- File name
-- PowerPoint metadata
-- Author
-- Theme
-- Font name
-- Alt text
-- Comments
-- Speaker notes
-- Image OCR
-- Internet content
-- AI-generated vocabulary
-
-Speaker notes can only be included by explicitly passing `includeNotes: true`.
-
-Image OCR is not implemented and must remain opt-in if added later.
-
-## Traceability
-
-Each vocabulary entry stores all source locations:
-
-```json
-{
-  "word": "学生",
-  "reading": "がくせい",
-  "romaji": "gakusei",
-  "meaning": "student",
-  "sourceLocations": [
-    {
-      "slideNumber": 4,
-      "rawText": "学生",
-      "sourceText": "学生",
-      "sourceType": "slide_text"
-    }
-  ]
-}
-```
-
-If validation cannot prove that every vocabulary word and Kanji came from extracted PPT text, the lesson is not saved.
-
-## Usage
-
-Install dependencies:
+## Chạy trên máy / server nhà
 
 ```bash
 npm install
+npx prisma db push
+npm run dev
 ```
 
-### Web app (upload PPT in browser)
+Mở http://localhost:3000 → **Đăng ký** tài khoản. Mỗi email có bài học và tiến độ riêng.
 
-```bash
-npm run web
-```
+Dữ liệu lưu SQLite tại `data/superkanji.db`. Upload tối đa **500MB**.
 
-Open [http://localhost:3456](http://localhost:3456), upload a `.pptx` file, then review vocabulary / kanji with slide sources.
+## Dùng khi ở mạng khác (miễn phí, ≥500MB)
 
-### CLI
+Xem [DEPLOY.md](./DEPLOY.md): chạy app trên máy nhà + **Tailscale**. Không dùng Vercel/Cloudflare nếu cần file lớn.
 
-```bash
-npm run dev -- ./lesson.pptx ./lesson.json
-```
+## Cách dùng
 
-Run tests:
+1. Tải file `.pptx` hoặc PDF có lớp chữ (tối đa 500MB).
+2. Sửa bảng kiểm tra. Mục lấy từ file, gợi ý từ điển và mục chưa rõ được gắn nhãn khác nhau.
+3. Bấm **Xác nhận và tạo bài**.
+4. Mở bài và chọn một trong ba chế độ:
+   - Flashcard
+   - Hán Việt: gõ âm Hán Việt của từng kanji
+   - Đọc kiểm tra: gõ hiragana của cả từ
+
+File `.ppt` cũ bị từ chối vì có thể chứa macro. PDF scan được báo là chưa có OCR; ứng dụng không giả vờ đã nhận dạng ảnh.
+
+Gợi ý từ điển chỉ điền vào ô đang trống và được đánh dấu là gợi ý. Âm hoặc nghĩa đã có trong file không bị ghi đè.
+
+## Kiểm thử
 
 ```bash
 npm test

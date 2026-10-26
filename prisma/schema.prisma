@@ -1,0 +1,157 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String           @id @default(cuid())
+  email            String           @unique
+  name             String
+  passwordHash     String           @default("")
+  ignoreDiacritics Boolean          @default(false)
+  revealMeaning    Boolean          @default(true)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  lessons          Lesson[]
+  sessions         StudySession[]
+  progress         ReviewProgress[]
+}
+
+model Lesson {
+  id               String           @id @default(cuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title            String
+  lessonNumber     Int?
+  jlptLevel        String?
+  originalFilename String
+  contentHash      String
+  sourceFileName   String
+  extractionStatus String
+  extractionError  String?
+  warnings         Json
+  rawBlocks        Json
+  needsOcr         Boolean          @default(false)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  lastStudiedAt    DateTime?
+  kanji            Kanji[]
+  vocabulary       Vocabulary[]
+  uncertain        UncertainText[]
+  sessions         StudySession[]
+  progress         ReviewProgress[]
+
+  @@index([userId, contentHash])
+}
+
+model Kanji {
+  id                 String            @id @default(cuid())
+  lessonId           String
+  lesson             Lesson            @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  character          String
+  hanViet            String            @default("")
+  hanVietOrigin      String            @default("none")
+  meanings           Json
+  meaningOrigin      String            @default("none")
+  onReadings         Json
+  onOrigin           String            @default("none")
+  kunReadings        Json
+  kunOrigin          String            @default("none")
+  notes              String            @default("")
+  verificationStatus String            @default("unverified")
+  sourcePages        Json
+  sourceExcerpt      String            @default("")
+  sortOrder          Int               @default(0)
+  vocabularyLinks    VocabularyKanji[]
+
+  @@unique([lessonId, character])
+}
+
+model Vocabulary {
+  id                 String            @id @default(cuid())
+  lessonId           String
+  lesson             Lesson            @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  writtenForm        String
+  hiragana           String            @default("")
+  katakana           String            @default("")
+  readingOrigin      String            @default("none")
+  meanings           Json
+  meaningOrigin      String            @default("none")
+  vocabularyType     String
+  readingVariants    Json
+  notes              String            @default("")
+  verificationStatus String            @default("unverified")
+  sourcePages        Json
+  sourceExcerpt      String            @default("")
+  sortOrder          Int               @default(0)
+  kanjiLinks         VocabularyKanji[]
+
+  @@index([lessonId])
+}
+
+model VocabularyKanji {
+  vocabularyId      String
+  kanjiId           String
+  characterPosition Int
+  vocabulary        Vocabulary @relation(fields: [vocabularyId], references: [id], onDelete: Cascade)
+  kanji             Kanji      @relation(fields: [kanjiId], references: [id], onDelete: Cascade)
+
+  @@id([vocabularyId, kanjiId])
+}
+
+model UncertainText {
+  id         String  @id @default(cuid())
+  lessonId   String
+  lesson     Lesson  @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  text       String
+  sourcePage Int?
+  resolved   Boolean @default(false)
+}
+
+model StudySession {
+  id             String        @id @default(cuid())
+  userId         String
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId       String
+  lesson         Lesson        @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  mode           String
+  startedAt      DateTime      @default(now())
+  completedAt    DateTime?
+  score          Int?
+  totalQuestions Int           @default(0)
+  questionIds    Json
+  answers        StudyAnswer[]
+}
+
+model StudyAnswer {
+  id                String       @id @default(cuid())
+  sessionId         String
+  session           StudySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  questionType      String
+  questionReference String
+  userAnswer        String
+  expectedAnswer    String
+  isCorrect         Boolean
+  answeredAt        DateTime     @default(now())
+}
+
+model ReviewProgress {
+  id             String    @id @default(cuid())
+  userId         String
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId       String
+  lesson         Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  itemType       String
+  itemId         String
+  correctCount   Int       @default(0)
+  incorrectCount Int       @default(0)
+  lastCorrect    Boolean?
+  lastReviewedAt DateTime?
+  nextReviewAt   DateTime?
+
+  @@unique([userId, itemType, itemId])
+}

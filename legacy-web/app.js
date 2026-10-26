@@ -69,10 +69,20 @@ form.addEventListener("submit", async (event) => {
       method: "POST",
       body
     });
-    const payload = await response.json();
+
+    let payload;
+    try {
+      payload = await response.json();
+    } catch {
+      throw new Error(
+        response.ok
+          ? "Server returned an invalid response."
+          : `Extract failed (HTTP ${response.status}). Is the server still running?`
+      );
+    }
 
     if (!response.ok) {
-      throw new Error(payload.error ?? "Extract thất bại.");
+      throw new Error(payload.error ?? `Extract thất bại (HTTP ${response.status}).`);
     }
 
     currentResult = payload;

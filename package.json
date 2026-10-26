@@ -4,20 +4,37 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "test": "npm run build && node --test dist/tests/pipeline.test.js",
-    "dev": "tsx src/cli.ts",
-    "web": "tsx src/server.ts",
-    "start": "npm run build && node dist/src/server.js"
+    "dev": "next dev -H 0.0.0.0",
+    "web": "next dev -H 0.0.0.0",
+    "build": "prisma generate && next build",
+    "start": "next start -H 0.0.0.0",
+    "serve": "npm run build && npm run start",
+    "test": "tsx --test tests/*.test.ts",
+    "cli": "tsx src/cli.ts",
+    "db:push": "prisma db push",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@prisma/client": "^6.19.3",
     "adm-zip": "^0.6.1",
+    "autoprefixer": "^10.6.1",
+    "busboy": "^1.6.0",
     "fast-xml-parser": "^5.11.1",
+    "next": "^15.5.28",
+    "postcss": "^8.5.31",
+    "prisma": "^6.19.3",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "tailwindcss": "^3.4.19",
+    "unpdf": "^1.9.1",
     "wanakana": "^5.3.1"
   },
   "devDependencies": {
     "@types/adm-zip": "^0.5.7",
+    "@types/busboy": "^1.5.4",
     "@types/node": "^22.13.1",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.3"
   }
