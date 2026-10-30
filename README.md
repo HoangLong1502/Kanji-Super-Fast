@@ -20,7 +20,7 @@ Xem [DEPLOY.md](./DEPLOY.md): chạy app trên máy nhà + **Tailscale**. Không
 
 ## Cách dùng
 
-1. Tải file `.pptx` hoặc PDF có lớp chữ (tối đa 500MB).
+1. Tải file `.pptx`, PDF có lớp chữ (tối đa 500MB), hoặc ảnh JPG/PNG/WebP/GIF chứa từ vựng (OCR, tối đa 25MB).
 2. Sửa bảng kiểm tra. Mục lấy từ file, gợi ý từ điển và mục chưa rõ được gắn nhãn khác nhau.
 3. Bấm **Xác nhận và tạo bài**.
 4. Mở bài và chọn một trong ba chế độ:

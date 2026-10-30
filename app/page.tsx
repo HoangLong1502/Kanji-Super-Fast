@@ -27,7 +27,7 @@ export default async function DashboardPage({
           <p className="text-sm font-medium text-brand">Xin chào, {user.name}</p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight">Bài học của bạn</h1>
           <p className="mt-2 max-w-2xl text-stone-600">
-            Tải PowerPoint hoặc PDF, kiểm tra kanji và từ ghép, rồi luyện bằng flashcard, Hán Việt hoặc đọc hiragana.
+            Tải PowerPoint hoặc PDF hoặc ảnh, kiểm tra kanji và từ ghép, rồi luyện bằng flashcard, Hán Việt hoặc đọc hiragana.
           </p>
         </div>
         <Link href="/upload" className="rounded-full bg-brand px-5 py-3 font-semibold text-white shadow-card">
@@ -39,7 +39,7 @@ export default async function DashboardPage({
         <Stat label="Bài học" value={data.stats.lessons} />
         <Stat label="Kanji đã thuộc" value={data.stats.kanjiLearned} />
         <Stat label="Từ đã thuộc" value={data.stats.vocabularyLearned} />
-        <Stat label="Cần ôn lại" value={data.stats.review} href="/review" />
+        <Stat label="từ còn sai" value={data.stats.review} href="/review" />
       </section>
 
       <form className="flex flex-wrap gap-2" action="/">
@@ -50,7 +50,7 @@ export default async function DashboardPage({
           id="q"
           name="q"
           defaultValue={query.q ?? ""}
-          placeholder="Tìm theo tên bài hoặc tên file"
+          placeholder="Tìm theo tên bài học"
           className="min-w-0 flex-1 rounded-2xl border border-line bg-paper px-4 py-3"
         />
         <label className="sr-only" htmlFor="jlpt">

@@ -4,6 +4,8 @@ import { createLessonFromFile, getCurrentUser } from "../../../../lib/lessonServ
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+/** OCR ảnh có thể chậm; máy nhà / Node server cần thời gian dài hơn mặc định. */
+export const maxDuration = 300;
 
 export async function POST(request: Request) {
   try {
