@@ -11,7 +11,7 @@ export async function ensureUploadDir(): Promise<string> {
 
 export function storedUploadPath(fileName: string): string {
   const safe = basename(fileName);
-  if (!/^[\w-]+\.(pptx|pdf)$/u.test(safe)) {
+  if (!/^[\w-]+\.(pptx|pdf|jpg|jpeg|png|gif|webp)$/u.test(safe)) {
     throw new Error("Tên file lưu trữ không hợp lệ.");
   }
 

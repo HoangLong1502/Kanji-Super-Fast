@@ -2,8 +2,9 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { Kanji, Lesson, Prisma, ReviewProgress, Vocabulary } from "@prisma/client";
 import { classifyVocabulary, eligibleHanVietQuestion, eligibleReadingQuestion, sortUnreviewedFirst } from "../src/eligibility.js";
-import { detectUploadKind } from "../src/fileKind.js";
+import { detectUploadKind, extensionForKind, isImageKind } from "../src/fileKind.js";
 import { gradeHanViet, gradeHiragana } from "../src/grading.js";
+import { extractImageText, imageOcrLooksEmpty } from "../src/imageExtractor.js";
 import { isKanji } from "../src/japanese.js";
 import { applyDictionarySuggestions, parseLessonDocument, type LessonDraft } from "../src/lessonDraft.js";
 import { createMaziiLookup } from "../src/maziiSuggest.js";
@@ -90,8 +91,13 @@ export async function createLessonFromFile(
     throw new LessonError("File .ppt cũ không được mở, để tránh macro. Hãy lưu lại thành .pptx rồi tải lên.");
   }
 
-  if (kind !== "pptx" && kind !== "pdf") {
-    throw new LessonError("Chỉ nhận file .pptx hoặc PDF có lớp chữ.");
+  const extension = extensionForKind(kind);
+  if (!extension) {
+    throw new LessonError("Chỉ nhận .pptx, PDF có lớp chữ, hoặc ảnh JPG/PNG/WebP/GIF.");
+  }
+
+  if (isImageKind(kind) && file.bytes.length > 25 * 1024 * 1024) {
+    throw new LessonError("Ảnh OCR nên dưới 25MB để nhận dạng ổn định. Hãy nén hoặc cắt ảnh rồi tải lại.");
   }
 
   const contentHash = createHash("sha256").update(file.bytes).digest("hex");
@@ -117,7 +123,6 @@ export async function createLessonFromFile(
     }
   });
 
-  const extension = kind === "pdf" ? "pdf" : "pptx";
   const preferredName = `${lesson.id}.${extension}`;
 
   try {
@@ -126,11 +131,31 @@ export async function createLessonFromFile(
     const extracted = await readDocument(file.bytes, kind);
     let draft = parseLessonDocument(extracted.blocks, originalFilename);
 
-    if (extracted.needsOcr) {
+    if (isImageKind(kind)) {
       draft = {
         ...draft,
         warnings: [
-          "PDF gần như không có chữ để đọc. OCR cho bản scan chưa được bật, nên hãy dùng PDF có lớp text hoặc nhập tay ở mục chưa phân loại.",
+          "Chữ lấy từ OCR ảnh (tiếng Nhật). Hãy kiểm tra lại kanji và từ vựng vì OCR có thể lệch.",
+          ...draft.warnings
+        ]
+      };
+    }
+
+    if (extracted.needsOcr && kind === "pdf") {
+      draft = {
+        ...draft,
+        warnings: [
+          "PDF gần như không có chữ để đọc. Hãy dùng PDF có lớp text, tải ảnh chụp để OCR, hoặc nhập tay ở mục chưa phân loại.",
+          ...draft.warnings
+        ]
+      };
+    }
+
+    if (extracted.needsOcr && isImageKind(kind)) {
+      draft = {
+        ...draft,
+        warnings: [
+          "OCR gần như không đọc được chữ Nhật trong ảnh. Hãy chụp rõ hơn, cắt sát phần chữ, hoặc nhập tay.",
           ...draft.warnings
         ]
       };
@@ -184,8 +209,8 @@ export async function retryLesson(userId: string, lessonId: string) {
     if (hasFile) {
       const bytes = await readFile(storedUploadPath(lesson.sourceFileName));
       const kind = detectUploadKind(bytes);
-      if (kind !== "pptx" && kind !== "pdf") {
-        throw new LessonError("File gốc không còn là PPTX hoặc PDF hợp lệ.");
+      if (!extensionForKind(kind)) {
+        throw new LessonError("File gốc không còn là PPTX, PDF hoặc ảnh hợp lệ.");
       }
       extracted = await readDocument(bytes, kind);
     } else if (blocksFromDb.length > 0) {
@@ -708,13 +733,25 @@ async function requireLesson(userId: string, lessonId: string) {
   return lesson;
 }
 
-async function readDocument(bytes: Buffer, kind: "pptx" | "pdf") {
+async function readDocument(bytes: Buffer, kind: ReturnType<typeof detectUploadKind>) {
   if (kind === "pdf") {
     const pages = await extractPdfText(bytes);
     return {
       blocks: pages.map((page) => ({ page: page.page, text: page.text })),
       needsOcr: pdfNeedsOcr(pages)
     };
+  }
+
+  if (isImageKind(kind)) {
+    const pages = await extractImageText(bytes);
+    return {
+      blocks: pages.map((page) => ({ page: page.page, text: page.text })),
+      needsOcr: imageOcrLooksEmpty(pages)
+    };
+  }
+
+  if (kind !== "pptx") {
+    throw new LessonError("Định dạng file không được hỗ trợ.");
   }
 
   const slides = await extractPptxText(bytes);
