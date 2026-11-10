@@ -34,5 +34,7 @@ export function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp)$).*)"]
+  // /api/videos/upload is outside middleware so a large video is streamed to disk.
+  // Middleware otherwise clones the body and keeps only the first 10MB.
+  matcher: ["/((?!_next/static|_next/image|api/videos/upload|.*\\.(?:png|jpg|jpeg|gif|svg|ico|webp)$).*)"]
 };

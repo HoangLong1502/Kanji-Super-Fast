@@ -7,6 +7,7 @@ import { useState } from "react";
 const links = [
   { href: "/", label: "Bảng điều khiển" },
   { href: "/upload", label: "Tải tài liệu" },
+  { href: "/videos", label: "Video" },
   { href: "/review", label: "Ôn lỗi" },
   { href: "/settings", label: "Cài đặt" }
 ];
@@ -39,7 +40,7 @@ export function Nav({ userName }: { userName?: string }) {
         </Link>
         <nav className="flex flex-wrap items-center gap-1" aria-label="Chính">
           {links.map((link) => {
-            const active = pathname === link.href;
+            const active = link.href === "/" ? pathname === "/" : pathname === link.href || pathname.startsWith(`${link.href}/`);
             return (
               <Link
                 key={link.href}

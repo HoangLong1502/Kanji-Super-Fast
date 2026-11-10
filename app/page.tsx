@@ -30,9 +30,14 @@ export default async function DashboardPage({
             Tải PowerPoint hoặc PDF hoặc ảnh, kiểm tra kanji và từ ghép, rồi luyện bằng flashcard, Hán Việt hoặc đọc hiragana.
           </p>
         </div>
-        <Link href="/upload" className="rounded-full bg-brand px-5 py-3 font-semibold text-white shadow-card">
-          Tải tài liệu
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/upload" className="rounded-full bg-brand px-5 py-3 font-semibold text-white shadow-card">
+            Tải tài liệu
+          </Link>
+          <Link href="/videos" className="rounded-full border border-brand bg-white px-5 py-3 font-semibold text-brand shadow-card">
+            Xem video
+          </Link>
+        </div>
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

@@ -19,6 +19,7 @@ model User {
   lessons          Lesson[]
   sessions         StudySession[]
   progress         ReviewProgress[]
+  videos           Video[]
 }
 
 model Lesson {
@@ -137,6 +138,20 @@ model StudyAnswer {
   expectedAnswer    String
   isCorrect         Boolean
   answeredAt        DateTime     @default(now())
+}
+
+model Video {
+  id               String   @id @default(cuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title            String
+  originalFilename String
+  mimeType         String
+  byteSize         BigInt
+  storedName       String
+  createdAt        DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 model ReviewProgress {
