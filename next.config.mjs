@@ -1,6 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  serverExternalPackages: ["adm-zip", "unpdf", "pdfjs-dist", "@prisma/client"],
+  serverExternalPackages: ["adm-zip", "unpdf", "pdfjs-dist", "@prisma/client", "tesseract.js"],
   experimental: {
     serverActions: {
       bodySizeLimit: "500mb"

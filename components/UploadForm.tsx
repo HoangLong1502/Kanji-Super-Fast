@@ -13,7 +13,7 @@ export function UploadForm() {
 
   async function submit(selected = file) {
     if (!selected) {
-      setError("Hãy chọn một file .pptx hoặc PDF.");
+      setError("Hãy chọn file .pptx, PDF hoặc ảnh (JPG/PNG/WebP/GIF).");
       return;
     }
 
@@ -22,10 +22,16 @@ export function UploadForm() {
       return;
     }
 
+    const isImage = selected.type.startsWith("image/");
+    if (isImage && selected.size > 25 * 1024 * 1024) {
+      setError("Ảnh OCR nên dưới 25MB. Hãy nén hoặc cắt ảnh rồi tải lại.");
+      return;
+    }
+
     setBusy(true);
     setError("");
     setProgress(0);
-    setStatus("Đang tải file lên…");
+    setStatus(isImage ? "Đang tải ảnh lên… (OCR có thể mất thêm vài phút)" : "Đang tải file lên…");
 
     try {
       const body = new FormData();
@@ -63,16 +69,16 @@ export function UploadForm() {
           }
         }}
       >
-        <span className="text-lg font-semibold">Kéo thả PPTX hoặc PDF vào đây</span>
+        <span className="text-lg font-semibold">Kéo thả PPTX, PDF hoặc ảnh vào đây</span>
         <span className="mt-2 text-sm text-stone-600">
-          hoặc bấm để chọn · tối đa 500MB
+          hoặc bấm để chọn · PPT/PDF tới 500MB · ảnh tới 25MB
         </span>
         <span className="mt-3 font-medium text-brand">{file ? file.name : "Chưa chọn file"}</span>
         <input
           id="material"
           name="file"
           type="file"
-          accept=".ppt,.pptx,.pdf,application/pdf,application/vnd.openxmlformats-officedocument.presentationml.presentation"
+          accept=".ppt,.pptx,.pdf,.jpg,.jpeg,.png,.gif,.webp,application/pdf,image/jpeg,image/png,image/gif,image/webp,application/vnd.openxmlformats-officedocument.presentationml.presentation"
           className="sr-only"
           onChange={(event) => setFile(event.target.files?.[0] ?? null)}
         />

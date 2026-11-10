@@ -59,4 +59,5 @@ AUTH_SECRET="chuoi-bi-mat-dai-ngau-nhien"
 
 - Máy server phải **bật** và app phải **đang chạy**
 - Upload 500MB phụ thuộc tốc độ upload mạng nhà (có thể mất vài phút)
+- Ảnh OCR (JPG/PNG/…) lần đầu cần mạng để tải model tiếng Nhật; các lần sau nhanh hơn
 - Không dùng Cloudflare Tunnel / Vercel nếu cần ≥500MB (họ cắt nhỏ hơn)
